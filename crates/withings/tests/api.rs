@@ -23,7 +23,8 @@ async fn serve() -> String {
     async fn handle(req: Request) -> Json<Value> {
         let path = req.uri().path().to_owned();
         let body = if path.ends_with("/session") {
-            json!({"status": 0, "body": {"token": "NEW-TOKEN", "promoted": false}})
+            // Renew returns a fresh token, and here also a rotated sessionid.
+            json!({"status": 0, "body": {"token": "NEW-TOKEN", "sessionid": "ROTATED-SID", "promoted": false}})
         } else if path.ends_with("/measure") {
             json!({"status": 0, "body": {
                 "updatetime": 1710000000,
@@ -67,8 +68,8 @@ async fn refresh_returns_the_rotated_tokens() {
     let client = Client::with_base(base);
     let rotated = client.refresh(&session()).await.unwrap();
     assert_eq!(rotated.token, "NEW-TOKEN");
-    // The persistent sessionid and the ids are carried over.
-    assert_eq!(rotated.sessionid, "SECRET-SESSIONID");
+    // A rotated sessionid in the response is taken, not dropped for the stale one.
+    assert_eq!(rotated.sessionid, "ROTATED-SID");
     assert_eq!(rotated.owner_userid, Some(7));
 }
 

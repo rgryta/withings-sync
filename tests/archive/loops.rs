@@ -27,6 +27,7 @@ struct Fake {
     seen_tokens: Mutex<Vec<String>>,
     reject: bool,
     groups: Vec<Value>,
+    with_scores: bool,
 }
 
 impl Source for Fake {
@@ -75,13 +76,24 @@ impl Source for Fake {
     async fn scores(
         &self,
         _s: &Session,
-        _source: &str,
+        source: &str,
         _userid: i64,
         _lastupdate: i64,
         _offset: i64,
     ) -> Result<ScorePage, ClientError> {
+        let items = match (self.with_scores, source) {
+            (true, "healthindicator") => {
+                vec![
+                    json!({"scoreid": 55, "score_type": "vascular_age", "date": 1710000000, "score": 42.0}),
+                ]
+            }
+            (true, "trajectory") => {
+                vec![json!({"trajectoryid": 3, "type": "weight", "active": true})]
+            }
+            _ => vec![],
+        };
         Ok(ScorePage {
-            items: vec![],
+            items,
             more: false,
             next_offset: None,
             raw: json!({}),
@@ -177,4 +189,29 @@ db_test!(backfill_stops_when_the_budget_is_spent, |f| {
     .flatten()
     .unwrap_or(false);
     assert!(!done);
+});
+
+db_test!(scores_land_in_their_typed_tables, |f| {
+    let fake = Fake {
+        groups: vec![
+            json!({"grpid": 1, "date": 1710000000, "measures": [{"value": 70, "type": 1, "unit": 0}]}),
+        ],
+        with_scores: true,
+        ..Default::default()
+    };
+    let mut runner = Runner::new(f.pool.clone(), "owner".into(), 500, fake, seed_session());
+    runner.pass().await.unwrap();
+    let score: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM indicator_score WHERE id = 55 AND person_id = 7 AND source = 'healthindicator'",
+    )
+    .fetch_one(&f.pool)
+    .await
+    .unwrap();
+    assert_eq!(score, 1);
+    let traj: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM trajectory WHERE id = 3 AND person_id = 7")
+            .fetch_one(&f.pool)
+            .await
+            .unwrap();
+    assert_eq!(traj, 1);
 });

@@ -72,3 +72,31 @@ fn a_deleted_group_is_flagged() {
     let live = json!({"grpid": 4, "date": 1710000000, "measures": []});
     assert!(!normalize::group_is_deleted(&live));
 }
+
+#[test]
+fn a_health_indicator_score_maps() {
+    let s = json!({"scoreid": 55, "score_type": "vascular_age", "date": 1710000000, "score": 42.0, "status_classification": "good"});
+    let sc = normalize::score("healthindicator", &s).unwrap();
+    assert_eq!(sc.id, 55);
+    assert_eq!(sc.source, "healthindicator");
+    assert_eq!(sc.score_type.as_deref(), Some("vascular_age"));
+    assert_eq!(sc.score, Some(42.0));
+    assert_eq!(sc.person_id, None);
+}
+
+#[test]
+fn a_vitality_score_uses_its_own_id_key() {
+    let s = json!({"vitalityid": 77, "date": 1710000000, "score": 9.0});
+    let sc = normalize::score("vitality", &s).unwrap();
+    assert_eq!(sc.id, 77);
+    assert_eq!(sc.source, "vitality");
+}
+
+#[test]
+fn a_trajectory_maps() {
+    let t = json!({"trajectoryid": 3, "type": "weight", "active": true});
+    let tr = normalize::trajectory(&t).unwrap();
+    assert_eq!(tr.id, 3);
+    assert_eq!(tr.kind.as_deref(), Some("weight"));
+    assert_eq!(tr.active, Some(true));
+}

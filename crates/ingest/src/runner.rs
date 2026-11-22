@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use sqlx::postgres::PgPool;
 use withings_client::{ClientError, Session};
 use withings_core::models::Person;
-use withings_core::store::{measures, people, raw, session as session_store, sync};
+use withings_core::store::{measures, people, raw, scores, session as session_store, sync};
 
 use crate::normalize;
 use crate::source::Source;
@@ -178,7 +178,19 @@ impl<S: Source> Runner<S> {
                     &page.raw,
                 )
                 .await?;
-                count += page.items.len() as u64;
+                for item in &page.items {
+                    if source == "trajectory" {
+                        if let Ok(mut t) = normalize::trajectory(item) {
+                            t.person_id = Some(userid);
+                            scores::upsert_trajectory(&mut conn, &t).await?;
+                            count += 1;
+                        }
+                    } else if let Ok(mut sc) = normalize::score(source, item) {
+                        sc.person_id = Some(userid);
+                        scores::upsert_score(&mut conn, &sc).await?;
+                        count += 1;
+                    }
+                }
                 if page.more && page.next_offset.map(|o| o != offset).unwrap_or(false) {
                     offset = page.next_offset.unwrap();
                 } else {

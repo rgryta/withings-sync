@@ -68,6 +68,16 @@ pub struct IndicatorScore {
     pub raw: Value,
 }
 
+/// A weight/trend projection from `trajectory`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Trajectory {
+    pub id: i64,
+    pub person_id: Option<i64>,
+    pub kind: Option<String>,
+    pub active: Option<bool>,
+    pub raw: Value,
+}
+
 /// A Body Scan ECG recording. Not written yet (no endpoint observed), kept for shape.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ecg {

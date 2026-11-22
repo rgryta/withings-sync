@@ -97,27 +97,6 @@ pub async fn upsert_group(conn: &mut PgConnection, g: &MeasureGroup) -> sqlx::Re
     })
 }
 
-/// Mark as deleted every non-deleted group whose `ts` is in `[from, to)` and whose grpid
-/// is not in `present`. Returns how many were newly marked. A poll passes the window it
-/// just read and the ids it saw, so a weigh-in the app no longer returns is flagged.
-pub async fn mark_vanished(
-    conn: &mut PgConnection,
-    from: DateTime<Utc>,
-    to: DateTime<Utc>,
-    present: &[i64],
-) -> sqlx::Result<u64> {
-    let result = sqlx::query(
-        "UPDATE measure_group SET deleted_at = now(), updated_at = now() \
-         WHERE deleted_at IS NULL AND ts >= $1 AND ts < $2 AND NOT (grpid = ANY($3))",
-    )
-    .bind(from)
-    .bind(to)
-    .bind(present)
-    .execute(conn)
-    .await?;
-    Ok(result.rows_affected())
-}
-
 /// One measured value for a tool answer.
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct MeasureRow {
@@ -155,7 +134,7 @@ pub async fn series(
          SELECT v.grpid, v.person_id, v.ts, v.type_code, v.type_name, v.value::double precision AS value, v.deleted \
          FROM measure_value v JOIN chosen c ON c.grpid = v.grpid \
          WHERE (array_length($6::int[], 1) IS NULL OR v.type_code = ANY($6)) \
-         ORDER BY v.ts DESC, v.type_code",
+         ORDER BY v.ts DESC, v.grpid, v.type_code",
     )
     .bind(person)
     .bind(after)

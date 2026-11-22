@@ -4,6 +4,7 @@ pub mod ecg;
 pub mod measures;
 pub mod people;
 pub mod raw;
+pub mod scores;
 pub mod session;
 pub mod sql;
 pub mod sync;

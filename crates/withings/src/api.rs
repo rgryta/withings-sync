@@ -38,6 +38,16 @@ pub struct Client {
     base: String,
 }
 
+/// Withings spells `more` as a bool on some endpoints and an integer on others; both
+/// mean the same "there is another page".
+fn truthy_more(body: &Value) -> bool {
+    match body.get("more") {
+        Some(Value::Bool(b)) => *b,
+        Some(Value::Number(n)) => n.as_i64().map(|v| v != 0).unwrap_or(false),
+        _ => false,
+    }
+}
+
 /// A page of measurement groups.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MeasPage {
@@ -150,9 +160,17 @@ impl Client {
             .and_then(Value::as_str)
             .ok_or_else(|| ClientError::Shape("renew returned no token".to_owned()))?
             .to_owned();
+        // Renew returns only a fresh token today, but if Withings ever rotates the
+        // persistent sessionid too, take the new one rather than keep a stale credential
+        // that the next renew would be rejected for.
+        let sessionid = body
+            .get("sessionid")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .unwrap_or_else(|| s.sessionid.clone());
         Ok(Session {
             token,
-            sessionid: s.sessionid.clone(),
+            sessionid,
             accountid: s.accountid,
             owner_userid: s.owner_userid,
         })
@@ -237,15 +255,7 @@ impl Client {
             .cloned()
             .unwrap_or_default();
         let updatetime = body.get("updatetime").and_then(Value::as_i64).unwrap_or(0);
-        let more = body
-            .get("more")
-            .and_then(Value::as_bool)
-            .unwrap_or_else(|| {
-                body.get("more")
-                    .and_then(Value::as_i64)
-                    .map(|n| n != 0)
-                    .unwrap_or(false)
-            });
+        let more = truthy_more(&body);
         let next_offset = body.get("offset").and_then(Value::as_i64);
         Ok(MeasPage {
             groups,
@@ -297,7 +307,7 @@ impl Client {
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default();
-        let more = body.get("more").and_then(Value::as_bool).unwrap_or(false);
+        let more = truthy_more(&body);
         let next_offset = body.get("offset").and_then(Value::as_i64);
         Ok(ScorePage {
             items,

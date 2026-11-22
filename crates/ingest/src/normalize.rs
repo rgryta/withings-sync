@@ -141,3 +141,46 @@ pub fn ecg(v: &Value, signal: Option<&Value>) -> Result<Ecg, ShapeError> {
         raw: v.clone(),
     })
 }
+
+/// A derived score from `healthindicator` or `vitality`. The id key differs by source;
+/// `person_id` is left `None` for the runner to assign.
+pub fn score(source: &str, v: &Value) -> Result<withings_core::models::IndicatorScore, ShapeError> {
+    let id_key = match source {
+        "healthindicator" => "scoreid",
+        "vitality" => "vitalityid",
+        other => return Err(ShapeError(format!("not a score source: {other}"))),
+    };
+    let id = require_i64(v, id_key)?;
+    let ts = epoch(v, "date")
+        .or_else(|| epoch(v, "score_time"))
+        .ok_or_else(|| ShapeError(format!("score {id} has no date")))?;
+    Ok(withings_core::models::IndicatorScore {
+        id,
+        person_id: None,
+        source: source.to_owned(),
+        score_type: v
+            .get("score_type")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        ts,
+        score: v.get("score").and_then(Value::as_f64),
+        status: v
+            .get("status_classification")
+            .and_then(Value::as_str)
+            .or_else(|| v.get("status").and_then(Value::as_str))
+            .map(str::to_owned),
+        raw: v.clone(),
+    })
+}
+
+/// A projection from `trajectory`.
+pub fn trajectory(v: &Value) -> Result<withings_core::models::Trajectory, ShapeError> {
+    let id = require_i64(v, "trajectoryid")?;
+    Ok(withings_core::models::Trajectory {
+        id,
+        person_id: None,
+        kind: v.get("type").and_then(Value::as_str).map(str::to_owned),
+        active: v.get("active").and_then(Value::as_bool),
+        raw: v.clone(),
+    })
+}

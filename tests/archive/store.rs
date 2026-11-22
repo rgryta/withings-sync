@@ -83,18 +83,13 @@ db_test!(a_changed_value_is_revised_and_the_old_value_kept, |f| {
     assert_eq!(now, 7200);
 });
 
-db_test!(a_vanished_group_gets_deleted_at_and_comes_back_clean, |f| {
+db_test!(a_deleted_group_is_marked_and_comes_back_clean, |f| {
     let mut conn = f.pool.acquire().await.unwrap();
     people::upsert(&mut conn, &owner()).await.unwrap();
     let g = group(300, vec![measure(1, 7000, -2)]);
     measures::upsert_group(&mut conn, &g).await.unwrap();
-    let from = Utc.with_ymd_and_hms(2026, 3, 1, 0, 0, 0).unwrap();
-    let to = Utc.with_ymd_and_hms(2026, 3, 2, 0, 0, 0).unwrap();
-    // A poll that saw no groups in the window marks 300 deleted.
-    let marked = measures::mark_vanished(&mut conn, from, to, &[])
-        .await
-        .unwrap();
-    assert_eq!(marked, 1);
+    // The getmeas `deleted` flag path: the poll marks the group deleted.
+    measures::mark_deleted(&mut conn, 300).await.unwrap();
     let deleted: bool =
         sqlx::query_scalar("SELECT deleted_at IS NOT NULL FROM measure_group WHERE grpid = 300")
             .fetch_one(&f.pool)
