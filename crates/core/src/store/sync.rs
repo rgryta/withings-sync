@@ -101,3 +101,50 @@ pub async fn status(pool: &PgPool) -> sqlx::Result<Vec<StatusRow>> {
     .fetch_all(pool)
     .await
 }
+
+/// The poll watermark (max Withings `updatetime` seen), as unix seconds.
+pub async fn watermark(pool: &PgPool, loop_: &str) -> sqlx::Result<Option<i64>> {
+    let ts: Option<DateTime<Utc>> =
+        sqlx::query_scalar("SELECT backfill_cursor FROM sync_state WHERE loop = $1")
+            .bind(loop_)
+            .fetch_optional(pool)
+            .await?
+            .flatten();
+    Ok(ts.map(|t| t.timestamp()))
+}
+
+/// Advance the watermark, never backwards.
+pub async fn set_watermark(pool: &PgPool, loop_: &str, epoch: i64) -> sqlx::Result<()> {
+    let ts = DateTime::<Utc>::from_timestamp(epoch, 0);
+    sqlx::query(
+        "INSERT INTO sync_state (loop, backfill_cursor) VALUES ($1, $2) \
+         ON CONFLICT (loop) DO UPDATE SET backfill_cursor = \
+           GREATEST(sync_state.backfill_cursor, EXCLUDED.backfill_cursor)",
+    )
+    .bind(loop_)
+    .bind(ts)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn is_backfill_done(pool: &PgPool, loop_: &str) -> sqlx::Result<bool> {
+    Ok(
+        sqlx::query_scalar::<_, bool>("SELECT backfill_done FROM sync_state WHERE loop = $1")
+            .bind(loop_)
+            .fetch_optional(pool)
+            .await?
+            .unwrap_or(false),
+    )
+}
+
+pub async fn mark_backfill_done(pool: &PgPool, loop_: &str) -> sqlx::Result<()> {
+    sqlx::query(
+        "INSERT INTO sync_state (loop, backfill_done) VALUES ($1, true) \
+         ON CONFLICT (loop) DO UPDATE SET backfill_done = true",
+    )
+    .bind(loop_)
+    .execute(pool)
+    .await?;
+    Ok(())
+}

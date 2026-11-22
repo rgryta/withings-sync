@@ -66,3 +66,15 @@ pub async fn owner_id(pool: &PgPool) -> sqlx::Result<Option<i64>> {
         .fetch_optional(pool)
         .await
 }
+
+/// Ensure a person row exists for an id, without clobbering a label a sync already set.
+/// Backfill learns the owner before a profile sync has run, and the measure FK needs the
+/// row present.
+pub async fn ensure(conn: &mut PgConnection, id: i64, is_owner: bool) -> sqlx::Result<()> {
+    sqlx::query("INSERT INTO person (id, is_owner) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING")
+        .bind(id)
+        .bind(is_owner)
+        .execute(conn)
+        .await?;
+    Ok(())
+}

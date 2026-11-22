@@ -221,3 +221,15 @@ pub async fn latest_group(pool: &PgPool, person: Option<i64>) -> sqlx::Result<Op
     .fetch_optional(pool)
     .await
 }
+
+/// Mark one group deleted (the getmeas `deleted` flag). Idempotent.
+pub async fn mark_deleted(conn: &mut PgConnection, grpid: i64) -> sqlx::Result<()> {
+    sqlx::query(
+        "UPDATE measure_group SET deleted_at = COALESCE(deleted_at, now()), updated_at = now() \
+         WHERE grpid = $1",
+    )
+    .bind(grpid)
+    .execute(conn)
+    .await?;
+    Ok(())
+}
