@@ -2,4 +2,5 @@
 
 mod isolation;
 mod schema;
+mod store;
 mod support;
