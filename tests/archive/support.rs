@@ -15,8 +15,11 @@ use withings_core::db::{create_pool, ensure_schema};
 
 /// Every table the migrations create, minus `schema_migration`. Extended as the schema
 /// grows; `measure` and `measure_revision` go with `measure_group` through the CASCADE.
-const TRUNCATE_ALL: &str = "TRUNCATE measure_group, person, device, measure_type, \
-                            ingest_session, sync_state, account CASCADE";
+/// `measure_type` is seed/reference data and is deliberately left in place, like
+/// `schema_migration`.
+const TRUNCATE_ALL: &str = "TRUNCATE measure_group, person, device, indicator_score, \
+                            trajectory, ecg, raw_response, ingest_session, sync_state, \
+                            account CASCADE";
 
 /// One named container serves every run, parked in a `static` and marked for reuse.
 /// Remove it with `docker rm -f withings-sync-test-pg` when you want the disk back.

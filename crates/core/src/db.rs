@@ -20,7 +20,16 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 /// depend on the repository being mounted next to it, and a scratch image has no
 /// `db-migrations/` to read. `migrations_match_the_directory` fails if a file is added
 /// here and not to this list, or the other way round.
-pub const MIGRATIONS: &[(&str, &str)] = &[];
+pub const MIGRATIONS: &[(&str, &str)] = &[
+    (
+        "0001_init.sql",
+        include_str!("../../../db-migrations/pg/0001_init.sql"),
+    ),
+    (
+        "0002_place_on_tablespaces.sql",
+        include_str!("../../../db-migrations/pg/0002_place_on_tablespaces.sql"),
+    ),
+];
 
 const SCHEMA_MIGRATION_DDL: &str = "
 CREATE TABLE IF NOT EXISTS schema_migration (
