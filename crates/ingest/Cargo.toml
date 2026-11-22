@@ -1,0 +1,28 @@
+# The ingester: the Withings private API's answers to archive rows, and the
+# `withings-ingest` process that polls and backfills with them.
+[package]
+name = "withings-ingest"
+description = "The Withings ingester: poll, backfill, and payloads to archive rows"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+publish.workspace = true
+
+[[bin]]
+name = "withings-ingest"
+path = "src/bin/withings-ingest.rs"
+
+[dependencies]
+chrono.workspace = true
+withings-client = { path = "../withings" }
+withings-core.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["time", "sync"] }
+tracing.workspace = true
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["time", "test-util"] }

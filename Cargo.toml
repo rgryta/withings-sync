@@ -1,0 +1,76 @@
+# The Withings archive: the client that reads the Withings app's private API, the
+# ingester that writes the archive, the store, and the read-only MCP server.
+#
+# The root package carries only the MCP binary, and depends on `withings-core` and
+# `withings-mcp-server` but never on `withings-client`. That is a link-time guarantee
+# rather than a tested one: the process that serves the archive cannot reach Withings,
+# because the code to do so is not in it. `tests/archive/isolation.rs` keeps the
+# manifests honest.
+[workspace]
+members = ["crates/core", "crates/ingest", "crates/withings", "crates/mcp"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.100"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+withings-core = { path = "crates/core" }
+withings-mcp-server = { path = "crates/mcp" }
+chrono = { version = "0.4.45", default-features = false, features = ["std", "serde", "clock"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sqlx = { version = "0.9.0", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls-ring",
+    "postgres",
+    "chrono",
+    "json",
+    "macros",
+] }
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "net", "io-util", "signal"] }
+tracing = "0.1.44"
+
+[package]
+name = "withings-sync"
+description = "Read-only MCP server over the Withings body-measurement archive"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "withings-mcp"
+path = "src/bin/withings-mcp.rs"
+
+[dependencies]
+withings-core.workspace = true
+withings-mcp-server.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+[dev-dependencies]
+axum = "0.8.9"
+chrono.workspace = true
+withings-client = { path = "crates/withings" }
+withings-ingest = { path = "crates/ingest" }
+serde_json.workspace = true
+sqlx.workspace = true
+testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
+testcontainers = { version = "0.27.3", features = ["reusable-containers"] }
+
+[[test]]
+name = "archive"
+path = "tests/archive/main.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
