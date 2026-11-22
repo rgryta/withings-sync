@@ -1,6 +1,12 @@
-//! The session: the persistent `sessionid` and the short-lived `token`, plus the ids the
-//! ingester needs. Stored verbatim in `ingest_session.session`; its `Debug` is redacted
-//! so a stray log line cannot print the credential.
+//! The session: the persistent device credentials the app uses to re-authenticate
+//! silently (`auth?action=login`), plus the current session token. Stored verbatim in
+//! `ingest_session.session`; its `Debug` is redacted so a stray log line cannot print a
+//! credential.
+//!
+//! The device credentials (`auth_token`, `providertoken`, `device_token`, `uuid`) come
+//! from the one interactive sign-in and do not expire or need a 2FA code — they are what
+//! makes the ingester autonomous. `token` is the short-lived Session-Id the server hands
+//! back and is re-minted by a silent login.
 
 use std::fmt;
 
@@ -8,15 +14,18 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Session {
-    /// The persistent credential. Survives restarts; only a human login replaces it.
-    pub sessionid: String,
-    /// The short-lived access token, carried as the `Session-Id` header and re-minted by
-    /// `refresh`.
+    /// Device credential: the account/device auth token (from the interactive sign-in).
+    pub auth_token: String,
+    /// Device credential: the provider token. May rotate on login; persist the latest.
+    pub providertoken: String,
+    /// Device credential: the device token (the sign-in's `token` field).
+    pub device_token: String,
+    /// The device uuid the sign-in was bound to.
+    pub uuid: String,
+    /// The active session token, carried as the `Session-Id` header. Re-minted by login.
     pub token: String,
-    /// The Withings account id, learned at login.
     #[serde(default)]
     pub accountid: Option<i64>,
-    /// The owner's userid, so the ingester knows which profile is `is_owner`.
     #[serde(default)]
     pub owner_userid: Option<i64>,
 }
@@ -24,7 +33,10 @@ pub struct Session {
 impl fmt::Debug for Session {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Session")
-            .field("sessionid", &"**********")
+            .field("auth_token", &"**********")
+            .field("providertoken", &"**********")
+            .field("device_token", &"**********")
+            .field("uuid", &"**********")
             .field("token", &"**********")
             .field("accountid", &self.accountid)
             .field("owner_userid", &self.owner_userid)

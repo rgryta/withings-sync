@@ -31,9 +31,11 @@ as `X.Y.Z` and `latest`. The live stack follows the version tags through wud. `c
 
 - `.env` files committed to this repo carry variable **names with empty values**.
 - The DSN is a `Secret` (`crates/core/src/config.rs`) whose `Debug` is redacted.
-- The session (the Withings `sessionid` plus the short-lived token) lives in
-  `ingest_session`, which migration 0001 revokes from the MCP role. No app-embedded
-  secret is used: the private API authenticates with a session token in a header.
+- The session lives in `ingest_session`, which migration 0001 revokes from the MCP role.
+  It holds the persistent device credentials (`auth_token`, `providertoken`,
+  `device_token`, `uuid`) the ingester re-authenticates with via `auth?action=login` —
+  no 2FA code or user interaction needed — plus the current session token. The private
+  API authenticates each call with that token in a `Session-Id` header.
 - Never commit a captured payload. Fixtures are synthetic: call-sign words for names
   and text, `example.com` for URLs, made-up ids and plausible fake values.
 
@@ -46,7 +48,8 @@ as `X.Y.Z` and `latest`. The live stack follows the version tags through wud. `c
 - **All SQL lives in `crates/core/src/store/`.** Nothing else writes a query.
 - **Read-only toward Withings.** The client names read calls only (plus session refresh);
   no writes, no account updates, no push-token registration, ever.
-- **The client never logs in.** A rejected session is recorded and retried after
+- **The client never does the interactive sign-in** (email shortcode + 2FA): it re-auths
+  silently from the stored device credentials. A rejected session is recorded and retried after
   `WITHINGS_AUTH_RETRY`; a fresh session comes from a human in a real browser/app.
 - Migrations are forward-only and never edited once applied.
 - **Every profile is archived.** Unassigned weigh-ins are kept with a null person; tools

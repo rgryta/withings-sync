@@ -6,7 +6,7 @@ use withings_client::{Client, ClientError, MeasPage, ScorePage, Session};
 
 #[allow(async_fn_in_trait)]
 pub trait Source {
-    async fn refresh(&self, s: &Session) -> Result<Session, ClientError>;
+    async fn login(&self, s: &Session) -> Result<Session, ClientError>;
     async fn profiles(&self, s: &Session) -> Result<Vec<Value>, ClientError>;
     async fn account(&self, s: &Session) -> Result<Value, ClientError>;
     async fn devices(&self, s: &Session) -> Result<Vec<Value>, ClientError>;
@@ -29,8 +29,8 @@ pub trait Source {
 }
 
 impl Source for Client {
-    async fn refresh(&self, s: &Session) -> Result<Session, ClientError> {
-        Client::refresh(self, s).await
+    async fn login(&self, s: &Session) -> Result<Session, ClientError> {
+        Client::login(self, s).await
     }
     async fn profiles(&self, s: &Session) -> Result<Vec<Value>, ClientError> {
         Client::profiles(self, s).await

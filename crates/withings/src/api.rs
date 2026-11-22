@@ -20,9 +20,10 @@ const APPPFM: &str = "android";
 const CALLCTX: &str = "foreground";
 
 /// Every request this client may issue: method and path under the cgi-bin base. A read
-/// call, or the session refresh. Nothing here writes to the account.
+/// call, or the silent re-auth (`auth?action=login`, which mints a session from stored
+/// device credentials and never changes anything on the account). Nothing here writes.
 pub const ALLOWED: &[(&str, &str)] = &[
-    ("POST", "session"),            // action=renew
+    ("POST", "auth"),               // action=login (silent re-auth from device creds)
     ("POST", "account"),            // action=get / getuserslist
     ("POST", "association"),        // action=getbyaccountid (devices)
     ("GET", "v2/user"),             // action=get (one profile, enriched)
@@ -138,39 +139,50 @@ impl Client {
         Ok(json.get("body").cloned().unwrap_or(Value::Null))
     }
 
-    /// Re-mint the short-lived token from the persistent sessionid. Returns the rotated
-    /// session: same `sessionid`, new `token`.
-    pub async fn refresh(&self, s: &Session) -> Result<Session, ClientError> {
+    /// Silently re-authenticate from the stored device credentials, returning a session
+    /// with a fresh `token` (the Session-Id the server hands back). This is `auth?action=
+    /// login`: it needs no 2FA code and no user interaction, which is what Withings' own
+    /// app uses to keep syncing in the background. (`session/renew` cannot do this — it
+    /// demands a one-time TOTP to promote a secure session.)
+    pub async fn login(&self, s: &Session) -> Result<Session, ClientError> {
         let body = self
             .call(
                 None,
                 "POST",
-                "session",
-                "renew",
+                "auth",
+                "login",
                 &[
-                    ("sessionid", s.sessionid.clone()),
-                    ("is_secure", "1".to_owned()),
+                    ("auth_token", s.auth_token.clone()),
+                    ("providertoken", s.providertoken.clone()),
+                    ("token", s.device_token.clone()),
+                    ("uuid", s.uuid.clone()),
+                    ("authprovider", "withings".to_owned()),
+                    ("duration", "345600".to_owned()),
+                    ("modelname", "sdk_gphone64_x86_64".to_owned()),
                     ("os", "android".to_owned()),
-                    ("typename", "null".to_owned()),
+                    ("osversion", "16".to_owned()),
+                    ("typename", "mobile".to_owned()),
                 ],
             )
             .await?;
+        // The fresh sessionid is the new Session-Id token.
         let token = body
-            .get("token")
-            .and_then(Value::as_str)
-            .ok_or_else(|| ClientError::Shape("renew returned no token".to_owned()))?
-            .to_owned();
-        // Renew returns only a fresh token today, but if Withings ever rotates the
-        // persistent sessionid too, take the new one rather than keep a stale credential
-        // that the next renew would be rejected for.
-        let sessionid = body
             .get("sessionid")
             .and_then(Value::as_str)
+            .ok_or_else(|| ClientError::Shape("login returned no sessionid".to_owned()))?
+            .to_owned();
+        // The provider token can rotate on login; keep the latest so the next login works.
+        let providertoken = body
+            .get("providertoken")
+            .and_then(Value::as_str)
             .map(str::to_owned)
-            .unwrap_or_else(|| s.sessionid.clone());
+            .unwrap_or_else(|| s.providertoken.clone());
         Ok(Session {
             token,
-            sessionid,
+            providertoken,
+            auth_token: s.auth_token.clone(),
+            device_token: s.device_token.clone(),
+            uuid: s.uuid.clone(),
             accountid: s.accountid,
             owner_userid: s.owner_userid,
         })

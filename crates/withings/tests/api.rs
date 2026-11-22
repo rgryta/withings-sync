@@ -1,6 +1,6 @@
 //! Client tests against a local server: the allow-list refuses unknown paths before
-//! sending, refresh rotates the token, a non-zero status is a rejection not an HTTP
-//! error, paging reports `more`, and no credential reaches `Debug`.
+//! sending, a silent login mints a fresh token, a non-zero status is a rejection not an
+//! HTTP error, paging reports `more`, and no credential reaches `Debug`.
 
 use std::net::SocketAddr;
 
@@ -11,7 +11,10 @@ use withings_client::{Client, ClientError, Session};
 
 fn session() -> Session {
     Session {
-        sessionid: "SECRET-SESSIONID".into(),
+        auth_token: "SECRET-AUTH".into(),
+        providertoken: "SECRET-PROVIDER".into(),
+        device_token: "SECRET-DEVICE".into(),
+        uuid: "SECRET-UUID".into(),
         token: "SECRET-TOKEN".into(),
         accountid: Some(42),
         owner_userid: Some(7),
@@ -22,9 +25,9 @@ fn session() -> Session {
 async fn serve() -> String {
     async fn handle(req: Request) -> Json<Value> {
         let path = req.uri().path().to_owned();
-        let body = if path.ends_with("/session") {
-            // Renew returns a fresh token, and here also a rotated sessionid.
-            json!({"status": 0, "body": {"token": "NEW-TOKEN", "sessionid": "ROTATED-SID", "promoted": false}})
+        let body = if path.ends_with("/auth") {
+            // Silent login mints a fresh sessionid (the new token) and a rotated provider token.
+            json!({"status": 0, "body": {"sessionid": "NEW-TOKEN", "providertoken": "NEW-PROVIDER", "is_secure": true}})
         } else if path.ends_with("/measure") {
             json!({"status": 0, "body": {
                 "updatetime": 1710000000,
@@ -63,14 +66,15 @@ async fn a_request_outside_the_allow_list_is_refused_before_sending() {
 }
 
 #[tokio::test]
-async fn refresh_returns_the_rotated_tokens() {
+async fn login_mints_a_fresh_token_and_keeps_the_rotated_provider_token() {
     let base = serve().await;
     let client = Client::with_base(base);
-    let rotated = client.refresh(&session()).await.unwrap();
-    assert_eq!(rotated.token, "NEW-TOKEN");
-    // A rotated sessionid in the response is taken, not dropped for the stale one.
-    assert_eq!(rotated.sessionid, "ROTATED-SID");
-    assert_eq!(rotated.owner_userid, Some(7));
+    let fresh = client.login(&session()).await.unwrap();
+    assert_eq!(fresh.token, "NEW-TOKEN");
+    // The rotated provider token is kept; the device credentials carry over.
+    assert_eq!(fresh.providertoken, "NEW-PROVIDER");
+    assert_eq!(fresh.auth_token, "SECRET-AUTH");
+    assert_eq!(fresh.owner_userid, Some(7));
 }
 
 #[tokio::test]
@@ -95,7 +99,14 @@ async fn paging_reports_more_and_offset() {
 #[tokio::test]
 async fn secrets_and_tokens_never_appear_in_debug() {
     let shown = format!("{:?}", session());
-    assert!(!shown.contains("SECRET-SESSIONID"), "{shown}");
-    assert!(!shown.contains("SECRET-TOKEN"), "{shown}");
+    for secret in [
+        "SECRET-AUTH",
+        "SECRET-PROVIDER",
+        "SECRET-DEVICE",
+        "SECRET-UUID",
+        "SECRET-TOKEN",
+    ] {
+        assert!(!shown.contains(secret), "{shown}");
+    }
     assert!(shown.contains("**********"));
 }

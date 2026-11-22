@@ -13,7 +13,10 @@ use crate::support::db_test;
 
 fn seed_session() -> Session {
     Session {
-        sessionid: "sid".into(),
+        auth_token: "at".into(),
+        providertoken: "pt".into(),
+        device_token: "dt".into(),
+        uuid: "uu".into(),
         token: "t0".into(),
         accountid: Some(1),
         owner_userid: Some(7),
@@ -21,22 +24,22 @@ fn seed_session() -> Session {
 }
 
 /// A fake that records every session it was handed and serves canned pages.
-/// `token_expired` makes the `account` probe reject (so the runner tries to refresh);
-/// `refresh_rejects` makes `refresh` reject too.
+/// `token_expired` makes the `account` probe reject (so the runner re-authenticates);
+/// `login_rejects` makes the silent login reject too.
 #[derive(Default)]
 struct Fake {
     seen_tokens: Mutex<Vec<String>>,
     token_expired: bool,
-    refresh_rejects: bool,
+    login_rejects: bool,
     groups: Vec<Value>,
     with_scores: bool,
     two_profiles: bool,
 }
 
 impl Source for Fake {
-    async fn refresh(&self, s: &Session) -> Result<Session, ClientError> {
+    async fn login(&self, s: &Session) -> Result<Session, ClientError> {
         self.seen_tokens.lock().unwrap().push(s.token.clone());
-        if self.refresh_rejects {
+        if self.login_rejects {
             return Err(ClientError::Rejected(401));
         }
         Ok(Session {
@@ -155,7 +158,7 @@ db_test!(a_valid_token_is_not_refreshed, |f| {
 db_test!(a_rejected_session_is_a_rejection_not_a_crash, |f| {
     let fake = Fake {
         token_expired: true,
-        refresh_rejects: true,
+        login_rejects: true,
         ..Default::default()
     };
     let mut runner = Runner::new(f.pool.clone(), "owner".into(), 500, fake, seed_session());

@@ -1,4 +1,4 @@
-//! The ingest loops. A pass refreshes the token (and persists it before any further
+//! The ingest loops. A pass re-authenticates (and persists it before any further
 //! request), syncs every profile's measurements from the watermark forward, and records
 //! the scores. Backfill walks the whole history once under a daily request budget.
 //!
@@ -75,15 +75,14 @@ impl<S: Source> Runner<S> {
     /// Make sure the session's token is usable, refreshing only when Withings rejects it.
     ///
     /// The stored token is tried first with a cheap call. A still-valid token is left
-    /// alone — the session's own renewal needs a secure-session step Withings has not
-    /// handed us, so refreshing a live token would needlessly risk it. When the token is
-    /// rejected, the refreshed session is persisted **before** any further request, so a
+    /// alone — re-auth mints a brand-new session, so there is no point doing it while the token
+    /// still works. When the token is rejected, the re-authed session is persisted **before** any further request, so a
     /// crash right after the refresh still finds the new token saved.
     async fn authenticate(&mut self) -> Result<(), RunError> {
         match self.source.account(&self.session).await {
             Ok(_) => Ok(()),
             Err(ClientError::Rejected(_)) => {
-                let rotated = self.source.refresh(&self.session).await?;
+                let rotated = self.source.login(&self.session).await?;
                 let mut conn = self.pool.acquire().await?;
                 session_store::save(&mut conn, &self.account, &json!(rotated)).await?;
                 self.session = rotated;

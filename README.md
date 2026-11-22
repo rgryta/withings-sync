@@ -25,13 +25,16 @@ plus a short-lived token) in the `ingest_session` table, which the MCP role cann
 
 ## Seeding the session
 
-The ingester never logs in. Seed it once from a signed-in session:
+The ingester never does the interactive sign-in. Seed it once with the **device
+credentials** a signed-in Withings client holds — these do not expire and need no 2FA
+code, so the ingester re-authenticates itself from then on (via `auth?action=login`):
 
-1. Capture a session JSON `{ "sessionid": "...", "token": "...", "accountid": 0, "owner_userid": 0 }`
-   from a signed-in Withings client. `sessionid` is the persistent credential; `token` is
-   re-minted automatically.
+1. Capture a session JSON from a signed-in client's `auth?action=login` request:
+   `{ "auth_token": "...", "providertoken": "...", "device_token": "...", "uuid": "...",
+   "token": "...", "accountid": 0, "owner_userid": 0 }`. The four device credentials are
+   the persistent ones; `token` is re-minted automatically.
 2. Put it on the host and point the ingester at it for one start with
    `WITHINGS_SESSION_FROM=/path/to/session.json`. It is written to `ingest_session` and the
    database wins from then on; remove the env var and file afterwards.
 
-To replace a dead session, delete the `ingest_session` row and seed again.
+To replace dead device credentials, delete the `ingest_session` row and seed again.
