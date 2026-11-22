@@ -22,3 +22,16 @@ plus a short-lived token) in the `ingest_session` table, which the MCP role cann
 - **Seed-once auth.** The owner signs in once; the `sessionid` is seeded into
   `ingest_session`, and the ingester refreshes the short-lived token itself. It never
   logs in and never holds the password.
+
+## Seeding the session
+
+The ingester never logs in. Seed it once from a signed-in session:
+
+1. Capture a session JSON `{ "sessionid": "...", "token": "...", "accountid": 0, "owner_userid": 0 }`
+   from a signed-in Withings client. `sessionid` is the persistent credential; `token` is
+   re-minted automatically.
+2. Put it on the host and point the ingester at it for one start with
+   `WITHINGS_SESSION_FROM=/path/to/session.json`. It is written to `ingest_session` and the
+   database wins from then on; remove the env var and file afterwards.
+
+To replace a dead session, delete the `ingest_session` row and seed again.
