@@ -64,6 +64,8 @@ pub struct McpSettings {
     /// written without a port on purpose, because `WITHINGS_MCP_PORT` is already
     /// configurable and pinning the port in two places invites the two to disagree.
     pub allowed_hosts: Vec<String>,
+    /// The timezone trends are bucketed in, from `WITHINGS_MCP_TZ` or `TZ`, UTC by default.
+    pub tz: String,
 }
 
 /// Where the server listens, read on its own so `--health-check` can find the port
@@ -125,6 +127,9 @@ impl McpSettings {
             port,
             log_level: env::var("WITHINGS_MCP_LOG_LEVEL").unwrap_or_else(|_| "INFO".to_owned()),
             allowed_hosts: allowed_hosts_from_env(),
+            tz: env::var("WITHINGS_MCP_TZ")
+                .or_else(|_| env::var("TZ"))
+                .unwrap_or_else(|_| "UTC".to_owned()),
         })
     }
 
@@ -138,6 +143,7 @@ impl McpSettings {
                 .iter()
                 .map(|h| (*h).to_owned())
                 .collect(),
+            tz: "UTC".to_owned(),
         }
     }
 }

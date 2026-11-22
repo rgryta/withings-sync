@@ -233,3 +233,25 @@ pub async fn mark_deleted(conn: &mut PgConnection, grpid: i64) -> sqlx::Result<(
     .await?;
     Ok(())
 }
+
+/// Resolve a mix of numeric codes and type names to codes. An unrecognised name is
+/// dropped (the caller gets no rows for it rather than an error).
+pub async fn resolve_types(pool: &PgPool, wanted: &[String]) -> sqlx::Result<Vec<i32>> {
+    let mut codes = Vec::new();
+    let mut names = Vec::new();
+    for w in wanted {
+        match w.trim().parse::<i32>() {
+            Ok(code) => codes.push(code),
+            Err(_) => names.push(w.trim().to_lowercase()),
+        }
+    }
+    if !names.is_empty() {
+        let found: Vec<i32> =
+            sqlx::query_scalar("SELECT code FROM measure_type WHERE lower(name) = ANY($1)")
+                .bind(&names)
+                .fetch_all(pool)
+                .await?;
+        codes.extend(found);
+    }
+    Ok(codes)
+}
