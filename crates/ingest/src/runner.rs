@@ -72,14 +72,25 @@ impl<S: Source> Runner<S> {
         &self.session
     }
 
-    /// Refresh the token and persist the rotated session **before** issuing any further
-    /// request, so a crash right after the refresh still finds the new token saved.
+    /// Make sure the session's token is usable, refreshing only when Withings rejects it.
+    ///
+    /// The stored token is tried first with a cheap call. A still-valid token is left
+    /// alone — the session's own renewal needs a secure-session step Withings has not
+    /// handed us, so refreshing a live token would needlessly risk it. When the token is
+    /// rejected, the refreshed session is persisted **before** any further request, so a
+    /// crash right after the refresh still finds the new token saved.
     async fn authenticate(&mut self) -> Result<(), RunError> {
-        let rotated = self.source.refresh(&self.session).await?;
-        let mut conn = self.pool.acquire().await?;
-        session_store::save(&mut conn, &self.account, &json!(rotated)).await?;
-        self.session = rotated;
-        Ok(())
+        match self.source.account(&self.session).await {
+            Ok(_) => Ok(()),
+            Err(ClientError::Rejected(_)) => {
+                let rotated = self.source.refresh(&self.session).await?;
+                let mut conn = self.pool.acquire().await?;
+                session_store::save(&mut conn, &self.account, &json!(rotated)).await?;
+                self.session = rotated;
+                Ok(())
+            }
+            Err(e) => Err(e.into()),
+        }
     }
 
     /// Fetch every profile, mark the owner, upsert them, and return their userids.

@@ -20,12 +20,14 @@ fn seed_session() -> Session {
     }
 }
 
-/// A fake that records every session it was handed and serves canned pages. `reject`
-/// makes `refresh` reject; `pages` are returned by `measures` in order, then empty.
+/// A fake that records every session it was handed and serves canned pages.
+/// `token_expired` makes the `account` probe reject (so the runner tries to refresh);
+/// `refresh_rejects` makes `refresh` reject too.
 #[derive(Default)]
 struct Fake {
     seen_tokens: Mutex<Vec<String>>,
-    reject: bool,
+    token_expired: bool,
+    refresh_rejects: bool,
     groups: Vec<Value>,
     with_scores: bool,
     two_profiles: bool,
@@ -34,7 +36,7 @@ struct Fake {
 impl Source for Fake {
     async fn refresh(&self, s: &Session) -> Result<Session, ClientError> {
         self.seen_tokens.lock().unwrap().push(s.token.clone());
-        if self.reject {
+        if self.refresh_rejects {
             return Err(ClientError::Rejected(401));
         }
         Ok(Session {
@@ -53,7 +55,11 @@ impl Source for Fake {
         }
         Ok(vec![json!({"id": 7, "shortname": "ALPHA", "isshared": 0})])
     }
-    async fn account(&self, _s: &Session) -> Result<Value, ClientError> {
+    async fn account(&self, s: &Session) -> Result<Value, ClientError> {
+        self.seen_tokens.lock().unwrap().push(s.token.clone());
+        if self.token_expired {
+            return Err(ClientError::Rejected(401));
+        }
         Ok(json!({}))
     }
     async fn devices(&self, _s: &Session) -> Result<Vec<Value>, ClientError> {
@@ -110,7 +116,10 @@ impl Source for Fake {
 }
 
 db_test!(a_rotated_token_is_saved_before_the_next_request, |f| {
+    // The stored token is rejected, so the runner refreshes and must persist the rotated
+    // session before going on.
     let fake = Fake {
+        token_expired: true,
         groups: vec![
             json!({"grpid": 1, "date": 1710000000, "measures": [{"value": 70, "type": 1, "unit": 0}]}),
         ],
@@ -130,9 +139,23 @@ db_test!(a_rotated_token_is_saved_before_the_next_request, |f| {
     assert_eq!(runner.session().token, "t1");
 });
 
+db_test!(a_valid_token_is_not_refreshed, |f| {
+    // The probe succeeds, so the token is left alone — no refresh, no rotation.
+    let fake = Fake {
+        groups: vec![
+            json!({"grpid": 9, "date": 1710000000, "measures": [{"value": 70, "type": 1, "unit": 0}]}),
+        ],
+        ..Default::default()
+    };
+    let mut runner = Runner::new(f.pool.clone(), "owner".into(), 500, fake, seed_session());
+    runner.pass().await.unwrap();
+    assert_eq!(runner.session().token, "t0");
+});
+
 db_test!(a_rejected_session_is_a_rejection_not_a_crash, |f| {
     let fake = Fake {
-        reject: true,
+        token_expired: true,
+        refresh_rejects: true,
         ..Default::default()
     };
     let mut runner = Runner::new(f.pool.clone(), "owner".into(), 500, fake, seed_session());
