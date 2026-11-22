@@ -91,10 +91,17 @@ impl<S: Source> Runner<S> {
                 parsed.push(p);
             }
         }
-        // The owner is the session's userid when known, else the one non-shared profile.
+        // The owner is the session's userid when known. Otherwise, among the non-shared
+        // profiles, the account holder's own is the primary one (Withings `usertype` 1,
+        // and the only one carrying the account email); fall back to the sole non-shared
+        // profile if that signal is absent.
         let owner = self.session.owner_userid.or_else(|| {
-            let candidates: Vec<i64> = parsed.iter().filter(|p| !p.shared).map(|p| p.id).collect();
-            (candidates.len() == 1).then(|| candidates[0])
+            let non_shared: Vec<&Person> = parsed.iter().filter(|p| !p.shared).collect();
+            non_shared
+                .iter()
+                .find(|p| p.raw.get("usertype").and_then(serde_json::Value::as_i64) == Some(1))
+                .map(|p| p.id)
+                .or_else(|| (non_shared.len() == 1).then(|| non_shared[0].id))
         });
         let mut conn = self.pool.acquire().await?;
         let mut ids = Vec::new();

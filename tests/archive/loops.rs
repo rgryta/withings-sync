@@ -28,6 +28,7 @@ struct Fake {
     reject: bool,
     groups: Vec<Value>,
     with_scores: bool,
+    two_profiles: bool,
 }
 
 impl Source for Fake {
@@ -43,6 +44,13 @@ impl Source for Fake {
     }
     async fn profiles(&self, s: &Session) -> Result<Vec<Value>, ClientError> {
         self.seen_tokens.lock().unwrap().push(s.token.clone());
+        if self.two_profiles {
+            // Two non-shared profiles; the primary (usertype 1) is the owner.
+            return Ok(vec![
+                json!({"id": 8, "shortname": "REP", "isshared": 0, "usertype": 3}),
+                json!({"id": 7, "shortname": "RAD", "isshared": 0, "usertype": 1}),
+            ]);
+        }
         Ok(vec![json!({"id": 7, "shortname": "ALPHA", "isshared": 0})])
     }
     async fn account(&self, _s: &Session) -> Result<Value, ClientError> {
@@ -214,4 +222,28 @@ db_test!(scores_land_in_their_typed_tables, |f| {
             .await
             .unwrap();
     assert_eq!(traj, 1);
+});
+
+db_test!(the_primary_profile_is_owner_when_two_are_non_shared, |f| {
+    let fake = Fake {
+        two_profiles: true,
+        ..Default::default()
+    };
+    // No owner in the seed, so the runner must pick it: the usertype-1 profile (id 7).
+    let session = Session {
+        owner_userid: None,
+        ..seed_session()
+    };
+    let mut runner = Runner::new(f.pool.clone(), "owner".into(), 500, fake, session);
+    runner.pass().await.unwrap();
+    let owner_id: i64 = sqlx::query_scalar("SELECT id FROM person WHERE is_owner")
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
+    assert_eq!(owner_id, 7);
+    let non_owner: bool = sqlx::query_scalar("SELECT NOT is_owner FROM person WHERE id = 8")
+        .fetch_one(&f.pool)
+        .await
+        .unwrap();
+    assert!(non_owner);
 });
