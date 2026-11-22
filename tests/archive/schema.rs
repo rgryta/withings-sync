@@ -132,3 +132,23 @@ db_test!(the_mcp_role_cannot_read_the_session_jar, |f| {
         .await
         .unwrap();
 });
+
+db_test!(the_body_composition_percent_codes_are_labelled, |f| {
+    // 0003 names the percentage codes and corrects the two 0001 got wrong.
+    let names: Vec<(i32, String)> =
+        sqlx::query_as("SELECT code, name FROM measure_type WHERE code = ANY($1) ORDER BY code")
+            .bind(vec![93, 94, 95, 122, 170])
+            .fetch_all(&f.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        names,
+        vec![
+            (93, "muscle_percent".to_string()),
+            (94, "bone_percent".to_string()),
+            (95, "water_percent".to_string()),
+            (122, "lean_mass_percent".to_string()),
+            (170, "visceral_fat".to_string()),
+        ]
+    );
+});
