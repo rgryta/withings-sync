@@ -4,6 +4,7 @@ services:
       - traefik.enable=false
       - wud.watch=true
       - wud.tag.include=^\d+\.\d+\.\d+$
+      - wud.trigger.include=dockercompose.withings
       - autoheal=true
     image: ghcr.io/rgryta/withings-sync:0.1.0
     container_name: withings-mcp
@@ -43,6 +44,7 @@ services:
       - traefik.enable=false
       - wud.watch=true
       - wud.tag.include=^\d+\.\d+\.\d+$
+      - wud.trigger.include=dockercompose.withings
     image: ghcr.io/rgryta/withings-sync:0.1.0
     container_name: withings-ingest
     restart: unless-stopped
