@@ -1,0 +1,21 @@
+[package]
+name = "withings-mcp-server"
+description = "The read surface: MCP tools over the archive"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+withings-core.workspace = true
+axum = "0.8.9"
+chrono.workspace = true
+rmcp = { version = "=3.10.0", features = ["server", "macros", "transport-streamable-http-server"] }
+schemars = "1.2.3"
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true

@@ -1,0 +1,29 @@
+version: 2
+
+# Weekly, grouped, never merged by itself: each batch arrives as one pull request that the
+# ci workflow tests. Actions and base images are grouped apart from the crates so a failing
+# dependency bump does not hold back the rest.
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      crates:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: /deploy
+    schedule:
+      interval: weekly
+    groups:
+      base-images:
+        patterns: ["*"]

@@ -1,0 +1,26 @@
+# The Withings private-API client: reads the app's cgi-bin endpoints over HTTPS. No
+# database: it fetches and parses, nothing more.
+#
+# MIT, not AGPL: this client talks to a documented-by-observation private API and holds
+# no code derived from an AGPL source. (instagram-client is AGPL only because its wire
+# format work was; withings' is original.)
+[package]
+name = "withings-client"
+description = "Read-only client for the Withings app's private API"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+reqwest = { version = "0.12.24", default-features = false, features = ["rustls-tls-webpki-roots", "json"] }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+axum = "0.8.9"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

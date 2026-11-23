@@ -1,0 +1,34 @@
+name: ci
+
+# Lint, test and build on every pull request. The Postgres tests start their own
+# throwaway container (testcontainers), which the hosted runner's Docker supports. Runs on a
+# GitHub-hosted runner on purpose: pull-request code, Dependabot's included, never touches the NAS.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+          # The image is built for musl and linked statically; see deploy/Dockerfile.
+          targets: x86_64-unknown-linux-musl
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      # The same invocation `deploy/Dockerfile` uses, so a green run says the image builds.
+      - run: cargo build --release --workspace --bins --target x86_64-unknown-linux-musl
