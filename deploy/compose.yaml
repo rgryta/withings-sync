@@ -3,9 +3,9 @@ services:
     labels:
       - traefik.enable=false
       - wud.watch=true
-      - wud.watch.digest=true
+      - wud.tag.include=^\d+\.\d+\.\d+$
       - autoheal=true
-    image: ghcr.io/rgryta/withings-sync:latest
+    image: ghcr.io/rgryta/withings-sync:0.1.0
     container_name: withings-mcp
     restart: unless-stopped
     cap_drop:
@@ -42,8 +42,8 @@ services:
     labels:
       - traefik.enable=false
       - wud.watch=true
-      - wud.watch.digest=true
-    image: ghcr.io/rgryta/withings-sync:latest
+      - wud.tag.include=^\d+\.\d+\.\d+$
+    image: ghcr.io/rgryta/withings-sync:0.1.0
     container_name: withings-ingest
     restart: unless-stopped
     cap_drop:
